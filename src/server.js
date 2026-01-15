@@ -6,10 +6,17 @@ const firebase = require('./firebase');
 const supabase = require('./supabase');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
+const { Pool } = require('pg');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+let pool = null;
+if (process.env.DATABASE_URL) {
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+}
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -18,17 +25,23 @@ const upload = multer({ storage });
  * @openapi
  * /upload:
  *   post:
- *     summary: Upload a file to Firebase Storage
+ *     summary: Upload a file to Firebase or Supabase Storage
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required:
+ *               - file
+ *               - project_id
  *             properties:
  *               file:
  *                 type: string
  *                 format: binary
+ *               project_id:
+ *                 type: string
+ *                 description: ID of the project this document belongs to
  *     responses:
  *       200:
  *         description: File uploaded successfully
@@ -37,12 +50,20 @@ const upload = multer({ storage });
  *             schema:
  *               type: object
  *               properties:
+ *                 document_id:
+ *                   type: string
+ *                   description: UUID of the created document
+ *                 message:
+ *                   type: string
+ *                   example: upload successfully
  *                 name:
  *                   type: string
  *                 url:
  *                   type: string
+ *                 document:
+ *                   type: object
  *       400:
- *         description: No file uploaded
+ *         description: Missing required fields
  */
 app.post('/upload', upload.single('file'), async (req, res) => {
   try {
@@ -92,7 +113,30 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
         const { data: signedData, error: signedErr } = await supabase.storage.from(bucketName).createSignedUrl(path, 60 * 60);
         if (signedErr) return res.status(500).json({ error: signedErr.message });
-        return res.json({ name: path, url: signedData.signedUrl });
+
+        // Require project_id in the multipart form
+        const projectId = req.body.project_id || req.body.projectId;
+        if (!projectId) return res.status(400).json({ error: 'project_id is required' });
+
+        // Ensure database is configured
+        if (!pool) return res.status(500).json({ error: 'DATABASE_URL not configured' });
+
+        try {
+          const id = uuidv4();
+          const filename = originalName;
+          const file_path = path;
+          const source = 'Upload';
+          const status = 'pending';
+          const document_content = null;
+
+          const insertQuery = `INSERT INTO documents (id, project_id, filename, file_path, source, status, document_content) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
+          const { rows } = await pool.query(insertQuery, [id, projectId, filename, file_path, source, status, document_content]);
+
+          // Return document_id and success message in response body
+          return res.json({ document_id: rows[0].id, message: 'upload successfully', name: path, url: signedData.signedUrl });
+        } catch (dbErr) {
+          return res.status(500).json({ error: dbErr.message });
+        }
       } catch (sbErr) {
         return res.status(500).json({ error: sbErr.message });
       }

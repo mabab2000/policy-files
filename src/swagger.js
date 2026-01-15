@@ -9,7 +9,7 @@ const options = {
       description: 'API for uploading policy files to Firebase Storage',
     },
     servers: [
-      { url: 'http://localhost:3000', description: 'Local server' }
+      { url: `http://localhost:${process.env.PORT || 3000}`, description: 'Local server' }
     ],
   },
   apis: ['./src/server.js'],
