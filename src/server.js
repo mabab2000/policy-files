@@ -11,11 +11,12 @@ const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 // Enable CORS for all origins and handle preflight explicitly so Swagger UI can call the API
+// Use wildcard origin '*' (no credentials) so public UIs can fetch the OpenAPI JSON.
 const corsOptions = {
-  origin: true, // reflect request origin
-  credentials: true,
+  origin: '*',
+  credentials: false,
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin'],
 };
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
