@@ -156,6 +156,18 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// Serve a dynamic swagger JSON that sets `servers` to the current protocol+host
+app.get('/swagger.json', (req, res) => {
+  try {
+    const spec = JSON.parse(JSON.stringify(swaggerSpec));
+    spec.servers = [{ url: `${req.protocol}://${req.get('host')}` }];
+    res.json(spec);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Configure Swagger UI to load the dynamic JSON so it matches the current deployment URL
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(null, { swaggerUrl: '/swagger.json' }));
 
 app.listen(port, () => console.log(`Server listening on port ${port} - docs at /api-docs`));
