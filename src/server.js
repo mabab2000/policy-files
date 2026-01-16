@@ -8,6 +8,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
+const documentsRoutes = require('./documents');
 
 const app = express();
 // Enable CORS for all origins and handle preflight explicitly so Swagger UI can call the API
@@ -155,6 +156,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// Removed generic project documents endpoint; use routes in `src/documents.js` instead.
+
 const port = process.env.PORT || 3000;
 // Serve a dynamic swagger JSON that sets `servers` to the current protocol+host
 app.get('/swagger.json', (req, res) => {
@@ -169,5 +172,8 @@ app.get('/swagger.json', (req, res) => {
 
 // Configure Swagger UI to load the dynamic JSON so it matches the current deployment URL
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(null, { swaggerUrl: '/swagger.json' }));
+
+// Mount documents routes (requires `pool` for DB access)
+app.use('/', documentsRoutes(pool));
 
 app.listen(port, () => console.log(`Server listening on port ${port} - docs at /api-docs`));

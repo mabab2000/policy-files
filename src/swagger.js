@@ -14,7 +14,7 @@ const options = {
       { url: process.env.SWAGGER_SERVER_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`, description: 'API server' }
     ],
   },
-  apis: ['./src/server.js'],
+  apis: ['./src/server.js', './src/documents.js'],
 };
 
 const swaggerSpec = swaggerJSDoc(options);
