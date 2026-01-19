@@ -183,6 +183,54 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
 // Removed generic project documents endpoint; use routes in `src/documents.js` instead.
 
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     responses:
+ *       200:
+ *         description: Service health status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 timestamp:
+ *                   type: string
+ *                 database:
+ *                   type: string
+ *                 storage:
+ *                   type: object
+ */
+app.get('/health', async (req, res) => {
+  const health = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    database: pool ? 'configured' : 'not configured',
+    storage: {
+      firebase: firebase.initialized() ? 'initialized' : 'not initialized',
+      supabase: supabase ? 'configured' : 'not configured'
+    }
+  };
+
+  // Test database connection
+  if (pool) {
+    try {
+      await pool.query('SELECT 1');
+      health.database = 'connected';
+    } catch (err) {
+      health.database = `error: ${err.message}`;
+      health.status = 'degraded';
+    }
+  }
+
+  const statusCode = health.status === 'ok' ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
 const port = process.env.PORT || 3000;
 // Serve a dynamic swagger JSON that sets `servers` to the current protocol+host
 app.get('/swagger.json', (req, res) => {
