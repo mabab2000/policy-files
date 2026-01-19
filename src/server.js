@@ -157,7 +157,10 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         try {
           const id = uuidv4();
           const filename = originalName;
-          const file_path = path;
+          // Build full public URL for storage in database
+          const supabaseUrl = process.env.SUPABASE_URL;
+          const fullPublicUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${bucketName}/${encodeURIComponent(path)}`;
+          const file_path = fullPublicUrl;
           const source = 'Upload';
           const status = 'pending';
           const document_content = null;
