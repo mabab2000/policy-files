@@ -11,6 +11,10 @@ const { v4: uuidv4 } = require('uuid');
 const documentsRoutes = require('./documents');
 
 const app = express();
+
+// Trust proxy to correctly detect HTTPS on Render
+app.set('trust proxy', 1);
+
 // Enable CORS for all origins and handle preflight explicitly so Swagger UI can call the API
 // Use wildcard origin '*' (no credentials) so public UIs can fetch the OpenAPI JSON.
 const corsOptions = {
@@ -236,7 +240,9 @@ const port = process.env.PORT || 3000;
 app.get('/swagger.json', (req, res) => {
   try {
     const spec = JSON.parse(JSON.stringify(swaggerSpec));
-    spec.servers = [{ url: `${req.protocol}://${req.get('host')}` }];
+    // Detect protocol: trust X-Forwarded-Proto header from Render's proxy
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    spec.servers = [{ url: `${protocol}://${req.get('host')}` }];
     res.json(spec);
   } catch (e) {
     res.status(500).json({ error: e.message });
