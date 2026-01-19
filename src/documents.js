@@ -186,6 +186,45 @@ module.exports = (pool) => {
 
   /**
    * @openapi
+   * /documents/project/{project_id}/processed:
+   *   get:
+   *     summary: Retrieve all processed documents (scraped or uploaded) for a project
+   *     parameters:
+   *       - in: path
+   *         name: project_id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Processed documents retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 documents:
+   *                   type: array
+   *                   items:
+   *                     type: object
+   */
+  router.get('/documents/project/:project_id/processed', async (req, res) => {
+    try {
+      const projectId = req.params.project_id;
+      if (!projectId) return res.status(400).json({ error: 'project_id is required' });
+      if (!pool) return res.status(500).json({ error: 'DATABASE_URL not configured' });
+
+      const query = `SELECT * FROM documents WHERE project_id = $1 AND lower(status) = 'processed' ORDER BY filename`;
+      const { rows } = await pool.query(query, [projectId]);
+
+      return res.json({ documents: rows });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * @openapi
    * /documents/project/{project_id}/summary:
    *   get:
    *     summary: Document summary counts by source and status for a project
