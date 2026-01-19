@@ -78,6 +78,14 @@ const upload = multer({ storage });
 app.post('/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    
+    // Require project_id in the multipart form
+    const projectId = req.body.project_id || req.body.projectId;
+    if (!projectId) return res.status(400).json({ error: 'project_id is required' });
+
+    // Ensure database is configured
+    if (!pool) return res.status(500).json({ error: 'DATABASE_URL not configured' });
+
     const originalName = req.file.originalname;
     const timestamp = Date.now();
     const dest = `${timestamp}_${originalName}`;
@@ -98,9 +106,27 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       stream.on('finish', async () => {
         try {
           const [url] = await file.getSignedUrl({ action: 'read', expires: Date.now() + 60 * 60 * 1000 });
-          res.json({ name: dest, url });
+          
+          // Save to database
+          const id = uuidv4();
+          const filename = originalName;
+          const file_path = dest;
+          const source = 'Upload';
+          const status = 'pending';
+          const document_content = null;
+
+          const insertQuery = `INSERT INTO documents (id, project_id, filename, file_path, source, status, document_content) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
+          const { rows } = await pool.query(insertQuery, [id, projectId, filename, file_path, source, status, document_content]);
+
+          return res.json({ 
+            document_id: rows[0].id, 
+            message: 'upload successfully', 
+            name: dest, 
+            url: url,
+            document: rows[0]
+          });
         } catch (err) {
-          res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: err.message });
         }
       });
 
@@ -124,13 +150,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const { data: signedData, error: signedErr } = await supabase.storage.from(bucketName).createSignedUrl(path, 60 * 60);
         if (signedErr) return res.status(500).json({ error: signedErr.message });
 
-        // Require project_id in the multipart form
-        const projectId = req.body.project_id || req.body.projectId;
-        if (!projectId) return res.status(400).json({ error: 'project_id is required' });
-
-        // Ensure database is configured
-        if (!pool) return res.status(500).json({ error: 'DATABASE_URL not configured' });
-
         try {
           const id = uuidv4();
           const filename = originalName;
@@ -143,7 +162,13 @@ app.post('/upload', upload.single('file'), async (req, res) => {
           const { rows } = await pool.query(insertQuery, [id, projectId, filename, file_path, source, status, document_content]);
 
           // Return document_id and success message in response body
-          return res.json({ document_id: rows[0].id, message: 'upload successfully', name: path, url: signedData.signedUrl });
+          return res.json({ 
+            document_id: rows[0].id, 
+            message: 'upload successfully', 
+            name: path, 
+            url: signedData.signedUrl,
+            document: rows[0]
+          });
         } catch (dbErr) {
           return res.status(500).json({ error: dbErr.message });
         }
